@@ -1,0 +1,95 @@
+import streamlit as st
+import pdfplumber
+import docx
+import re
+import io
+
+st.set_page_config(page_title="ClauseWise - Legal Document Analyzer", layout="wide")
+
+def extract_text_from_pdf(file_bytes):
+    text = ""
+    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+        for page in pdf.pages:
+            text += page.extract_text() + "\n"
+    return text
+
+def extract_text_from_docx(file_bytes):
+    temp = "temp.docx"
+    with open(temp, "wb") as f:
+        f.write(file_bytes)
+    document = docx.Document(temp)
+    return "\n".join([p.text for p in document.paragraphs])
+
+def extract_text(uploaded_file):
+    name = uploaded_file.name.lower()
+    content = uploaded_file.read()
+
+    if name.endswith(".pdf"):
+        return extract_text_from_pdf(content)
+    elif name.endswith(".docx"):
+        return extract_text_from_docx(content)
+    else:
+        return content.decode("utf-8", errors="ignore")
+
+def segment_clauses(text):
+    pattern = r"(Clause\s*\d+|Section\s*\d+|ARTICLE\s*\d+|[0-9]+\.)"
+    parts = re.split(pattern, text)
+    clauses = []
+
+    for i in range(1, len(parts), 2):
+        header = parts[i].strip()
+        body = parts[i+1].strip() if i+1 < len(parts) else ""
+        clauses.append({"header": header, "body": body})
+    return clauses
+
+def risk_score(text):
+    high = ["indemnify", "liability", "penalty", "termination", "damages", "legal"]
+    medium = ["confidential", "warranty", "notice", "payment"]
+    
+    score = 0
+    level = "Low"
+    t = text.lower()
+
+    for w in high:
+        if w in t:
+            score += 5
+    for w in medium:
+        if w in t:
+            score += 2
+    
+    if score >= 8:
+        level = "High"
+    elif score >= 3:
+        level = "Medium"
+    return level, score
+
+st.title("📑 ClauseWise - Legal Document Analyzer (Streamlit)")
+
+uploaded_file = st.file_uploader("Upload PDF or DOCX", type=["pdf", "docx"])
+
+if uploaded_file:
+    with st.spinner("Extracting text..."):
+        text = extract_text(uploaded_file)
+    
+    st.success("Text extracted successfully!")
+    
+    if st.checkbox("Show raw text"):
+        st.text_area("Extracted Text", text, height=250)
+
+    clauses = segment_clauses(text)
+
+    st.subheader("📌 Detected Clauses")
+    if not clauses:
+        st.warning("No standard clauses detected. Document may be unstructured.")
+    else:
+        for idx, clause in enumerate(clauses):
+            level, score = risk_score(clause["body"])
+            with st.expander(f"{clause['header']} | Risk: {level} ({score})"):
+                st.write(clause["body"])
+                st.write(f"**Risk Level:** {level}")
+                st.write("---")
+
+    st.markdown("---")
+    st.success("Analysis complete!")
+else:
+    st.info("⬆️ Upload a legal document to begin.")
