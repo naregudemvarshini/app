@@ -1,16 +1,3 @@
-"""
-ClauseWise - Streamlit app (single-file)
-Requirements: see requirements.txt
-
-How to run:
-1. pip install -r requirements.txt
-2. export/ set env vars:
-   - WATSON_APIKEY
-   - WATSON_URL
-   - GRANITE_APIKEY
-   - GRANITE_URL
-3. streamlit run app.py
-"""
 
 import os
 import io
